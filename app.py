@@ -6,7 +6,6 @@ from streamlit_folium import st_folium
 from mlxtend.frequent_patterns import apriori, association_rules
 from sklearn.cluster import KMeans
 import numpy as np
-from datetime import datetime
 
 st.set_page_config(page_title="Supermarket Dashboard", layout="wide")
 st.title("🛒 Supermarket Sales Dashboard")
@@ -26,9 +25,21 @@ if uploaded_file is not None:
     # -------------------------
     # Data Preprocessing
     # -------------------------
+    # Ensure correct datetime
     df["Date"] = pd.to_datetime(df["Date"])
     df["InvoiceDate"] = df["Date"] + pd.to_timedelta(df["Time"])
     df["CustomerID"] = df["Invoice ID"].astype(str)
+
+    # Detect monetary column
+    if "Sales" in df.columns:
+        monetary_col = "Sales"
+    elif "Total" in df.columns:
+        monetary_col = "Total"
+    elif "gross income" in df.columns:
+        monetary_col = "gross income"
+    else:
+        st.error("Dataset missing Sales/Total/gross income column!")
+        st.stop()
 
     # -------------------------
     # Objective 1: Customer Profiling (SEQ-RFM)
@@ -39,18 +50,19 @@ if uploaded_file is not None:
     rfm = df.groupby("CustomerID").agg({
         "InvoiceDate": lambda x: (snapshot_date - x.max()).days,
         "Invoice ID": "count",
-        "Total": "sum"
+        monetary_col: "sum"
     })
     rfm.columns = ["Recency", "Frequency", "Monetary"]
 
     # Add sequence of product lines per customer
-    seq = df.groupby("CustomerID")["Product line"].apply(lambda x: " → ".join(x))
-    rfm = rfm.join(seq)
+    if "Product line" in df.columns:
+        seq = df.groupby("CustomerID")["Product line"].apply(lambda x: " → ".join(x))
+        rfm = rfm.join(seq)
 
     st.write(rfm.head())
 
     fig_rfm = px.scatter(rfm, x="Recency", y="Monetary", size="Frequency",
-                         hover_data=["Product line"], title="RFM Scatter Plot")
+                         hover_data=rfm.columns, title="RFM Scatter Plot")
     st.plotly_chart(fig_rfm, use_container_width=True)
 
     # -------------------------
@@ -58,17 +70,17 @@ if uploaded_file is not None:
     # -------------------------
     st.header("2️⃣ Shopping Behavior (Apriori + Decision Tree)")
 
-    # Market Basket Analysis
-    basket = pd.crosstab(df["Invoice ID"], df["Product line"])
-    frequent_items = apriori(basket, min_support=0.03, use_colnames=True)
-    rules = association_rules(frequent_items, metric="lift", min_threshold=1)
-    st.write("Frequent Itemsets:", frequent_items.head())
-    st.write("Association Rules:", rules.head())
+    if "Product line" in df.columns:
+        basket = pd.crosstab(df["Invoice ID"], df["Product line"])
+        frequent_items = apriori(basket, min_support=0.03, use_colnames=True)
+        rules = association_rules(frequent_items, metric="lift", min_threshold=1)
+        st.write("Frequent Itemsets:", frequent_items.head())
+        st.write("Association Rules:", rules.head())
 
     # Peak shopping times
     df["Hour"] = df["Time"].apply(lambda x: int(x.split(":")[0]))
-    peak_sales = df.groupby("Hour")["Total"].sum().reset_index()
-    fig_peak = px.line(peak_sales, x="Hour", y="Total", title="Sales by Hour")
+    peak_sales = df.groupby("Hour")[monetary_col].sum().reset_index()
+    fig_peak = px.line(peak_sales, x="Hour", y=monetary_col, title="Sales by Hour")
     st.plotly_chart(fig_peak, use_container_width=True)
 
     # -------------------------
@@ -76,43 +88,43 @@ if uploaded_file is not None:
     # -------------------------
     st.header("3️⃣ Location Analysis (Dynamic Huff Model)")
 
-    # Store attractiveness (sales by branch)
-    store_attr = df.groupby("Branch")["Total"].sum().reset_index()
-    store_attr.columns = ["Branch", "Attractiveness"]
+    if "Branch" in df.columns:
+        store_attr = df.groupby("Branch")[monetary_col].sum().reset_index()
+        store_attr.columns = ["Branch", "Attractiveness"]
 
-    # Simulate distance matrix (since dataset doesn’t have lat/lon)
-    branches = store_attr["Branch"].unique()
-    customers = df["CustomerID"].unique()
+        branches = store_attr["Branch"].unique()
+        customers = df["CustomerID"].unique()
 
-    np.random.seed(42)
-    distances = pd.DataFrame(
-        np.random.randint(1, 20, size=(len(customers), len(branches))),
-        index=customers, columns=branches
-    )
+        np.random.seed(42)
+        distances = pd.DataFrame(
+            np.random.randint(1, 20, size=(len(customers), len(branches))),
+            index=customers, columns=branches
+        )
 
-    alpha, beta = 1, 1
-    huff = pd.DataFrame(index=customers, columns=branches)
+        alpha, beta = 1, 1
+        huff = pd.DataFrame(index=customers, columns=branches)
 
-    for b in branches:
-        huff[b] = (store_attr.set_index("Branch").loc[b, "Attractiveness"] ** alpha) / (distances[b] ** beta)
+        for b in branches:
+            huff[b] = (store_attr.set_index("Branch").loc[b, "Attractiveness"] ** alpha) / (distances[b] ** beta)
 
-    huff = huff.div(huff.sum(axis=1), axis=0)
-    st.write("Huff Model Probabilities (sample):", huff.head())
+        huff = huff.div(huff.sum(axis=1), axis=0)
+        st.write("Huff Model Probabilities (sample):", huff.head())
 
-    # Folium map with branch markers (dummy coords per city)
-    city_coords = {"Yangon": [16.8409, 96.1735],
-                   "Mandalay": [21.9588, 96.0891],
-                   "Naypyitaw": [19.7633, 96.0785]}
+        # Folium map with branch markers (dummy coords per city)
+        if "City" in df.columns:
+            city_coords = {"Yangon": [16.8409, 96.1735],
+                           "Mandalay": [21.9588, 96.0891],
+                           "Naypyitaw": [19.7633, 96.0785]}
 
-    m = folium.Map(location=[20, 96], zoom_start=5)
-    for city, coords in city_coords.items():
-        total_sales = df[df["City"] == city]["Total"].sum()
-        folium.CircleMarker(
-            location=coords, radius=total_sales/5000,
-            popup=f"{city}: {total_sales:.2f}", color="blue", fill=True
-        ).add_to(m)
+            m = folium.Map(location=[20, 96], zoom_start=5)
+            for city, coords in city_coords.items():
+                total_sales = df[df["City"] == city][monetary_col].sum()
+                folium.CircleMarker(
+                    location=coords, radius=max(3, total_sales/5000),
+                    popup=f"{city}: {total_sales:.2f}", color="blue", fill=True
+                ).add_to(m)
 
-    st_folium(m, width=700)
+            st_folium(m, width=700)
 
     # -------------------------
     # Objective 4: Customer Segmentation (K-Means)
