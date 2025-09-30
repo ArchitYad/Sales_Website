@@ -67,9 +67,9 @@ def show_recommendations():
     if {'Gender','Product line'}.issubset(df.columns):
         top_by_group = (df.groupby(['Gender','Product line'])[monetary_col]
                         .sum().reset_index()
-                        .sort_values(['Gender', monetary_col], ascending=[True,True,False]))
+                        .sort_values(['Gender', monetary_col], ascending=[True,False]))
         bundles = []
-        for (ctype, g), group_df in top_by_group.groupby(['Gender']):
+        for (g), group_df in top_by_group.groupby(['Gender']):
             top_lines = group_df['Product line'].unique()[:2]
             if len(top_lines) >= 2:
                 bundles.append({'gender': g,
