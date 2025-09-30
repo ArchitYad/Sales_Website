@@ -152,8 +152,3 @@ def show_analysis():
     # -------------------------
     # Button to go to Recommendations
     # -------------------------
-    st.markdown("---")
-    st.markdown("### Ready for Recommendations?")
-    if st.button("➡️ Go to Recommendations"):
-        st.query_params['page']='recommendations'
-        st.rerun()
