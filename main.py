@@ -7,13 +7,13 @@ st.set_page_config(page_title="Supermarket Dashboard", layout="wide")
 st.title("🛒 Supermarket Dashboard")
 
 # Tabs
-tab1, tab2, tab3 = st.tabs(["Home", "Analysis", "Recommendations"])
+tab = st.sidebar.radio("Navigate", ["Home", "Analysis", "Recommendations"])
 
-with tab1:
+with tab == "Home":
     show_home()  # Your Home.py content wrapped in a function
 
-with tab2:
+with tab == "Analysis":
     show_analysis()  # Analysis.py content
 
-with tab3:
+with tab == "Recommendations":
     show_recommendations()  # Recommendations.py content
