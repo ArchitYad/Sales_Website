@@ -154,5 +154,5 @@ st.plotly_chart(fig_seg, use_container_width=True)
 st.markdown("---")
 st.markdown("### Ready for Recommendations?")
 if st.button("➡️ Go to Recommendations"):
-    st.experimental_set_query_params(page="recommendations")
+    st.query_params(page="recommendations")
     st.experimental_rerun()
