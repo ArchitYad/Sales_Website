@@ -117,7 +117,7 @@ def show_recommendations():
     # -------------------------
     # 5️⃣ New Store Location Recommendation
     # -------------------------
-    st.subheader("5️⃣ New Store Location Recommendation")
+    """st.subheader("5️⃣ New Store Location Recommendation")
     if 'City' in df.columns:
         city_sales = df.groupby('City')[monetary_col].sum()
         branch_counts = df.groupby('City')['Branch'].nunique().to_dict()
@@ -126,7 +126,7 @@ def show_recommendations():
         st.table(cand.reset_index().rename(columns={'index':'City',0:'Score'}))
         st.write("Recommendation: Investigate top city for demographics & footfall. Use Huff model with real distances for final site.")
     else:
-        st.info("City information not available.")
+        st.info("City information not available.")"""
 
     # -------------------------
     # 6️⃣ Download all recommendations
