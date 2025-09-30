@@ -155,4 +155,4 @@ st.markdown("---")
 st.markdown("### Ready for Recommendations?")
 if st.button("➡️ Go to Recommendations"):
     st.query_params['page']='recommendations'
-    st.experimental_rerun()
+    st.rerun()
