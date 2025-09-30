@@ -9,11 +9,11 @@ st.title("🛒 Supermarket Dashboard")
 # Tabs
 tab = st.sidebar.radio("Navigate", ["Home", "Analysis", "Recommendations"])
 
-with tab == "Home":
+if tab == "Home":
     show_home()  # Your Home.py content wrapped in a function
 
-with tab == "Analysis":
+elif tab == "Analysis":
     show_analysis()  # Analysis.py content
 
-with tab == "Recommendations":
+elif tab == "Recommendations":
     show_recommendations()  # Recommendations.py content
