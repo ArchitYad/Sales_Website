@@ -34,7 +34,7 @@ if uploaded_file is not None:
 
         # Proceed to Analysis button
         if st.button("➡️ Go to Analysis"):
-            st.set_query_params(page="analysis")  # Optional for page navigation
+            st.query_params['page']='analysis'  # Optional for page navigation
             st.experimental_rerun()
 
     except Exception as e:
