@@ -33,11 +33,6 @@ def show_home():
             st.dataframe(df.head())
             st.write(f"Number of rows: {df.shape[0]}, Number of columns: {df.shape[1]}")
     
-            # Proceed to Analysis button
-            if st.button("➡️ Go to Analysis"):
-                st.query_params['page']='analysis'  # Optional for page navigation
-                st.rerun()
-    
         except Exception as e:
             st.error(f"Error reading file: {e}")
     else:
