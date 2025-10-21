@@ -1,32 +1,4 @@
 # Analysis.py
-def parse_mixed_dates(df, col="Date"):
-    """
-    Convert a column with mixed date formats to datetime safely.
-    Invalid entries become NaT.
-    """
-    # First, try automatic inference
-    dates = pd.to_datetime(df[col], errors="coerce", infer_datetime_format=True)
-    
-    # For rows still NaT, try explicit formats
-    mask = dates.isna()
-    if mask.any():
-        # Try MM/DD/YYYY
-        dates.loc[mask] = pd.to_datetime(df.loc[mask, col], format="%m/%d/%Y", errors="coerce")
-    mask = dates.isna()
-    if mask.any():
-        # Try DD/MM/YYYY
-        dates.loc[mask] = pd.to_datetime(df.loc[mask, col], format="%d/%m/%Y", errors="coerce")
-    mask = dates.isna()
-    if mask.any():
-        # Try MM-DD-YYYY
-        dates.loc[mask] = pd.to_datetime(df.loc[mask, col], format="%m-%d-%Y", errors="coerce")
-    mask = dates.isna()
-    if mask.any():
-        # Try DD-MM-YYYY
-        dates.loc[mask] = pd.to_datetime(df.loc[mask, col], format="%d-%m-%Y", errors="coerce")
-    
-    return dates
-
 def show_analysis():
     import streamlit as st
     import pandas as pd
@@ -36,6 +8,7 @@ def show_analysis():
     from sklearn.tree import DecisionTreeClassifier
     import folium
     from streamlit_folium import st_folium
+    from utils import parse_mixed_dates
 
     st.set_page_config(page_title="Supermarket Analysis", layout="wide")
     st.title("📊 Supermarket Analysis")
