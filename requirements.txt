@@ -8,3 +8,5 @@ mlxtend
 scikit-learn
 matplotlib
 seaborn
+openpyxl         
+geopy             
