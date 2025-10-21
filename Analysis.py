@@ -1,15 +1,14 @@
 # Analysis.py
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.tree import DecisionTreeClassifier
+import folium
+from streamlit_folium import st_folium
+from utils import parse_mixed_dates
 def show_analysis():
-    import streamlit as st
-    import pandas as pd
-    import plotly.express as px
-    import numpy as np
-    from sklearn.cluster import KMeans
-    from sklearn.tree import DecisionTreeClassifier
-    import folium
-    from streamlit_folium import st_folium
-    from utils import parse_mixed_dates
-
     st.set_page_config(page_title="Supermarket Analysis", layout="wide")
     st.title("📊 Supermarket Analysis")
 
