@@ -1,10 +1,9 @@
+import streamlit as st
+import pandas as pd
+import folium
+from streamlit_folium import st_folium
 def show_recommendations():
     # 2_Recommendations.py
-    import streamlit as st
-    import pandas as pd
-    import folium
-    from streamlit_folium import st_folium
-    from geopy.geocoders import Nominatim
     st.set_page_config(page_title="Supermarket Recommendations", layout="wide")
     st.title("🎯 Recommendations & Campaigns")
 
@@ -121,7 +120,6 @@ def show_recommendations():
     # -------------------------
     st.subheader("5️⃣ New Store Location Recommendation")
     
-    # === Step 1: Existing retail cities ===
     existing_cities = ["Mandalay State", "Yangon Division",  "Nay Pyi Taw State"]
     
     # === Step 2: File group mapping ===
@@ -132,6 +130,7 @@ def show_recommendations():
         "Group4": ("table_4.xlsx", ["Yangon Division", "Shan State", "Ayeyarwady State", "Nay Pyi Taw State"])
     }
     
+    # Food & non-food subcategories
     food_items = [
         "Rice","Pulses","Cooking oil and fats","Meat","Eggs","Fish and crustacea (fresh)","Vegetables",
         "Fruits","Fish and crustacea (dried)","Wheat and Rice products","Food Taken Outside Home",
@@ -145,7 +144,7 @@ def show_recommendations():
         "Recreation","Charity and ceremonials","Other expenses","Other household goods"
     ]
     
-    # === Step 3: Load data from GitHub ===
+    # === Step 3: Load and combine data ===
     region_totals = {}
     for group_name, (url, regions) in file_groups.items():
         df = pd.read_excel(url, header=1)
@@ -168,42 +167,54 @@ def show_recommendations():
         reverse=True
     )[:3]
     
-    # === Step 6: Geocode regions for map ===
-    geolocator = Nominatim(user_agent="retail_locator")
+    # === Step 6: Map coordinates (OpenStreetMap) ===
+    region_coords = {
+        "Union": [21.9162, 95.9560],
+        "Kachin State": [25.57, 97.33],
+        "Kayah State": [19.33, 96.58],
+        "Kayin State": [16.73, 97.60],
+        "Chin State": [21.95, 93.73],
+        "Sagaing Division": [22.00, 95.00],
+        "Tanintharyi Division": [12.25, 99.50],
+        "Bago Division": [17.33, 96.50],
+        "Magway Division": [20.15, 95.55],
+        "Mon State": [16.55, 97.73],
+        "Rakhine State": [19.90, 94.85],
+        "Shan State": [21.90, 97.80],
+        "Ayeyarwady State": [16.77, 94.73]
+    }
     
-    m = folium.Map(location=[21.9162, 95.9560], zoom_start=6)  # Center on Myanmar
-    
-    st.write("🏙️ **Recommended New Regions for Expansion:**")
+    # === Step 7: Display recommendations ===
+    st.subheader("5️⃣ New Store Location Recommendation")
+    m = folium.Map(location=[21.9162, 95.9560], zoom_start=6, tiles="OpenStreetMap")
     
     for region in top3_regions:
         data = region_totals[region]
         food_total = data.loc["FOOD AND BEVERAGES TOTAL", "Value"]
         non_food_total = data.loc["NON-FOOD TOTAL", "Value"]
         total = data.loc["HOUSEHOLD EXPENDITURE TOTAL", "Value"]
-        
+    
         food_share = food_total / total * 100
         non_food_share = non_food_total / total * 100
-        
         focus = "🛒 Food & FMCG" if food_share > non_food_share else "💡 Non-Food Retail"
-        
+    
         # Top subcategories
         top_food = data.loc[food_items, "Value"].sort_values(ascending=False).head(3).index.tolist()
         top_non_food = data.loc[non_food_items, "Value"].sort_values(ascending=False).head(3).index.tolist()
-        
+    
         st.write(f"✅ **{region}** — {focus}")
         st.write(f"   🍚 Top Food Items: {', '.join(top_food)}")
         st.write(f"   🧾 Top Non-Food Items: {', '.join(top_non_food)}")
-        
-        # Add to map
-        location = geolocator.geocode(region + ", Myanmar")
-        if location:
+    
+        coords = region_coords.get(region)
+        if coords:
             folium.Marker(
-                location=[location.latitude, location.longitude],
+                location=coords,
                 popup=f"{region}\n{focus}",
                 tooltip=region
             ).add_to(m)
     
-    # === Step 7: Display map in Streamlit ===
+    # Display Folium map
     st_folium(m, width=700, height=500)
 
 
