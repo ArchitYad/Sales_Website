@@ -2,7 +2,9 @@ def show_recommendations():
     # 2_Recommendations.py
     import streamlit as st
     import pandas as pd
-
+    import folium
+    from streamlit_folium import st_folium
+    from geopy.geocoders import Nominatim
     st.set_page_config(page_title="Supermarket Recommendations", layout="wide")
     st.title("🎯 Recommendations & Campaigns")
 
@@ -117,16 +119,93 @@ def show_recommendations():
     # -------------------------
     # 5️⃣ New Store Location Recommendation
     # -------------------------
-    """st.subheader("5️⃣ New Store Location Recommendation")
-    if 'City' in df.columns:
-        city_sales = df.groupby('City')[monetary_col].sum()
-        branch_counts = df.groupby('City')['Branch'].nunique().to_dict()
-        scores = {city: city_sales[city]/(branch_counts.get(city,0)+1) for city in city_sales.index}
-        cand = pd.Series(scores).sort_values(ascending=False).head(3)
-        st.table(cand.reset_index().rename(columns={'index':'City',0:'Score'}))
-        st.write("Recommendation: Investigate top city for demographics & footfall. Use Huff model with real distances for final site.")
-    else:
-        st.info("City information not available.")"""
+    st.subheader("5️⃣ New Store Location Recommendation")
+    
+    # === Step 1: Existing retail cities ===
+    existing_cities = ["Mandalay State", "Yangon Division",  "Nay Pyi Taw State"]
+    
+    # === Step 2: File group mapping ===
+    file_groups = {
+        "Group1": ("table_1.xlsx", ["Union", "Kachin State", "Kayah State", "Kayin State"]),
+        "Group2": ("table_2.xlsx", ["Chin State", "Sagaing Division", "Tanintharyi Division", "Bago Division"]),
+        "Group3": ("table_3.xlsx", ["Magway Division", "Mandalay State", "Mon State", "Rakhine State"]),
+        "Group4": ("table_4.xlsx", ["Yangon Division", "Shan State", "Ayeyarwady State", "Nay Pyi Taw State"])
+    }
+    
+    food_items = [
+        "Rice","Pulses","Cooking oil and fats","Meat","Eggs","Fish and crustacea (fresh)","Vegetables",
+        "Fruits","Fish and crustacea (dried)","Wheat and Rice products","Food Taken Outside Home",
+        "Ngapi and nganpyaye","Spices and condiments","Beverages","Sugar and other food","Milk and milk products"
+    ]
+    
+    non_food_items = [
+        "Tobacco","Fuel and light","Travelling expenses (Local)","Travelling expenses (Journey)",
+        "Clothing and apparel","Personal use goods","Cleansing and toilet","Crockery","Furniture",
+        "House rent and repairs","Education","Stationery and school supplies","Medical care",
+        "Recreation","Charity and ceremonials","Other expenses","Other household goods"
+    ]
+    
+    # === Step 3: Load data from GitHub ===
+    region_totals = {}
+    for group_name, (url, regions) in file_groups.items():
+        df = pd.read_excel(url, header=1)
+        df = df.rename(columns={df.columns[1]: "Particulars"})
+        
+        for idx, region in enumerate(regions):
+            value_col = "Value" if idx == 0 else f"Value.{idx}"
+            region_data = df[["Particulars", value_col]].copy()
+            region_data = region_data.rename(columns={value_col: "Value"})
+            region_data = region_data.set_index("Particulars")
+            region_totals[region] = region_data
+    
+    # === Step 4: Remove existing retail cities ===
+    available_regions = [r for r in region_totals.keys() if r not in existing_cities]
+    
+    # === Step 5: Compute top 3 regions by total expenditure ===
+    top3_regions = sorted(
+        available_regions,
+        key=lambda x: region_totals[x].loc["HOUSEHOLD EXPENDITURE TOTAL", "Value"],
+        reverse=True
+    )[:3]
+    
+    # === Step 6: Geocode regions for map ===
+    geolocator = Nominatim(user_agent="retail_locator")
+    
+    m = folium.Map(location=[21.9162, 95.9560], zoom_start=6)  # Center on Myanmar
+    
+    st.write("🏙️ **Recommended New Regions for Expansion:**")
+    
+    for region in top3_regions:
+        data = region_totals[region]
+        food_total = data.loc["FOOD AND BEVERAGES TOTAL", "Value"]
+        non_food_total = data.loc["NON-FOOD TOTAL", "Value"]
+        total = data.loc["HOUSEHOLD EXPENDITURE TOTAL", "Value"]
+        
+        food_share = food_total / total * 100
+        non_food_share = non_food_total / total * 100
+        
+        focus = "🛒 Food & FMCG" if food_share > non_food_share else "💡 Non-Food Retail"
+        
+        # Top subcategories
+        top_food = data.loc[food_items, "Value"].sort_values(ascending=False).head(3).index.tolist()
+        top_non_food = data.loc[non_food_items, "Value"].sort_values(ascending=False).head(3).index.tolist()
+        
+        st.write(f"✅ **{region}** — {focus}")
+        st.write(f"   🍚 Top Food Items: {', '.join(top_food)}")
+        st.write(f"   🧾 Top Non-Food Items: {', '.join(top_non_food)}")
+        
+        # Add to map
+        location = geolocator.geocode(region + ", Myanmar")
+        if location:
+            folium.Marker(
+                location=[location.latitude, location.longitude],
+                popup=f"{region}\n{focus}",
+                tooltip=region
+            ).add_to(m)
+    
+    # === Step 7: Display map in Streamlit ===
+    st_folium(m, width=700, height=500)
+
 
     # -------------------------
     # 6️⃣ Download all recommendations
