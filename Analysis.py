@@ -1,4 +1,32 @@
 # Analysis.py
+def parse_mixed_dates(df, col="Date"):
+    """
+    Convert a column with mixed date formats to datetime safely.
+    Invalid entries become NaT.
+    """
+    # First, try automatic inference
+    dates = pd.to_datetime(df[col], errors="coerce", infer_datetime_format=True)
+    
+    # For rows still NaT, try explicit formats
+    mask = dates.isna()
+    if mask.any():
+        # Try MM/DD/YYYY
+        dates.loc[mask] = pd.to_datetime(df.loc[mask, col], format="%m/%d/%Y", errors="coerce")
+    mask = dates.isna()
+    if mask.any():
+        # Try DD/MM/YYYY
+        dates.loc[mask] = pd.to_datetime(df.loc[mask, col], format="%d/%m/%Y", errors="coerce")
+    mask = dates.isna()
+    if mask.any():
+        # Try MM-DD-YYYY
+        dates.loc[mask] = pd.to_datetime(df.loc[mask, col], format="%m-%d-%Y", errors="coerce")
+    mask = dates.isna()
+    if mask.any():
+        # Try DD-MM-YYYY
+        dates.loc[mask] = pd.to_datetime(df.loc[mask, col], format="%d-%m-%Y", errors="coerce")
+    
+    return dates
+
 def show_analysis():
     import streamlit as st
     import pandas as pd
@@ -24,7 +52,7 @@ def show_analysis():
     # -------------------------
     # Data Preprocessing
     # -------------------------
-    df["Date"] = pd.to_datetime(df["Date"], infer_datetime_format=True, errors="coerce")
+    df["Date"] = parse_mixed_dates(df, "Date")
     df["InvoiceDate"] = df["Date"] + pd.to_timedelta(df["Time"])
     df["CustomerID"] = df["Invoice ID"].astype(str)
 
