@@ -24,7 +24,7 @@ def show_analysis():
     # -------------------------
     # Data Preprocessing
     # -------------------------
-    df["Date"] = pd.to_datetime(df["Date"])
+    df["Date"] = pd.to_datetime(df["Date"], infer_datetime_format=True, errors="coerce")
     df["InvoiceDate"] = df["Date"] + pd.to_timedelta(df["Time"])
     df["CustomerID"] = df["Invoice ID"].astype(str)
 
