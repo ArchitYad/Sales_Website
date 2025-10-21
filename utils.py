@@ -1,11 +1,6 @@
 # utils.py
-import pandas as pd
-
 def parse_mixed_dates(df, col="Date"):
-    """
-    Convert a column with mixed date formats to datetime safely.
-    Invalid entries become NaT.
-    """
+    import pandas as pd
     dates = pd.to_datetime(df[col], errors="coerce", infer_datetime_format=True)
     
     mask = dates.isna()
