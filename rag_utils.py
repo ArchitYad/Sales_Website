@@ -4,7 +4,7 @@ import os
 import pandas as pd
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_text_splitter import RecursiveCharacterTextSplitter   # <-- FIXED IMPORT
+from langchain_text_splitters import RecursiveCharacterTextSplitter   # <-- FIXED IMPORT
 from langchain.prompts import PromptTemplate
 from langchain.chains import RetrievalQA
 from groq import Groq
