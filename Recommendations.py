@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import folium
 from streamlit_folium import st_folium
+from rag_utils import load_rag_index, get_llm_chain
+from live_sources import fetch_news_summary, fetch_social_summary
 def show_recommendations():
     # 2_Recommendations.py
     st.set_page_config(page_title="Supermarket Recommendations", layout="wide")
@@ -217,55 +219,42 @@ def show_recommendations():
     # Display Folium map
     st_folium(m, width=700, height=500)
 
-    # -------------------------
-    # 6️⃣ AI Chat – Strategic Recommendation Engine (RAG + LLM)
-    # -------------------------
-    st.markdown("---")
-    st.subheader("🤖 AI Strategy Assistant (RAG + LLM)")
+    st.subheader("🤖 AI Strategy Assistant (LLM + RAG + Live Trends)")
     
-    # Create a sidebar floating chat window
-    with st.sidebar:
-        st.title("📌 Retail AI Assistant")
-        st.caption("LLM + RAG + Market Intelligence")
+    if "rag_index" not in st.session_state:
+        with st.spinner("Building knowledge base from government spending tables…"):
+            st.session_state.rag_index = load_rag_index()
     
-        # Load RAG index only once
-        from rag_utils import load_rag_index, get_llm_chain
+    with st.spinner("Fetching live economic news..."):
+        news_summary = fetch_news_summary()
     
-        if "rag_index" not in st.session_state:
-            with st.spinner("Building knowledge base from government tables…"):
-                st.session_state.rag_index = load_rag_index()
+    with st.spinner("Fetching social media trends..."):
+        social_summary = fetch_social_summary()
     
-        if "chat_history" not in st.session_state:
-            st.session_state.chat_history = []
+    context_boost = f"""
+    Latest Market News:
+    {news_summary}
     
-        qa = get_llm_chain(st.session_state.rag_index)
+    Current Consumer Trends:
+    {social_summary}
+    """
     
-        # Chat input
-        user_msg = st.text_input(
-            "Ask something…",
-            placeholder="e.g., 'Where should our next store open?'"
-        )
+    qa = get_llm_chain(st.session_state.rag_index, extra_context=context_boost)
     
-        # Handle response
-        if user_msg:
-            with st.spinner("Thinking…"):
-                llm_reply = qa.run(user_msg)
+    with st.chat_message("assistant"):
+        st.markdown("Hello! Ask anything about store expansion, discounts, product demand, or regional strategy.")
     
-            # Store in chat memory
-            st.session_state.chat_history.append(("user", user_msg))
-            st.session_state.chat_history.append(("bot", llm_reply))
+    user_input = st.chat_input("Ask your question…")
     
-        # Display chat
-        st.write("### 💬 Chat History")
-        for speaker, msg in st.session_state.chat_history:
-            if speaker == "user":
-                st.markdown(f"🧑 **You:** {msg}")
-            else:
-                st.markdown(f"🤖 **AI:** {msg}")
+    if user_input:
+        with st.chat_message("user"):
+            st.write(user_input)
     
-        # Optional: clear chat
-        if st.button("Clear Chat"):
-            st.session_state.chat_history = []
+        with st.chat_message("assistant"):
+            with st.spinner("Analyzing with RAG + News + Social signals…"):
+                response = qa.run({"query": user_input, "extra_context": context_boost})
+            st.write(response)
+
 
 
     # -------------------------
