@@ -10,3 +10,13 @@ matplotlib
 seaborn
 openpyxl         
 geopy             
+faiss-cpu
+langchain
+langchain-community
+langchain-groq
+langchain-huggingface
+sentence-transformers
+requests
+xmltodict
+python-dotenv
+newsapi-python
