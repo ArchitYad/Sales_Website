@@ -13,10 +13,13 @@ geopy
 faiss-cpu
 langchain
 langchain-community
+groq
 langchain-groq
+langchain-text-splitters
 langchain-huggingface
 sentence-transformers
 requests
 xmltodict
 python-dotenv
 newsapi-python
+tiktoken
