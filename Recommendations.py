@@ -217,9 +217,59 @@ def show_recommendations():
     # Display Folium map
     st_folium(m, width=700, height=500)
 
+    # -------------------------
+    # 6️⃣ AI Chat – Strategic Recommendation Engine (RAG + LLM)
+    # -------------------------
+    st.markdown("---")
+    st.subheader("🤖 AI Strategy Assistant (RAG + LLM)")
+    
+    # Create a sidebar floating chat window
+    with st.sidebar:
+        st.title("📌 Retail AI Assistant")
+        st.caption("LLM + RAG + Market Intelligence")
+    
+        # Load RAG index only once
+        from rag_utils import load_rag_index, get_llm_chain
+    
+        if "rag_index" not in st.session_state:
+            with st.spinner("Building knowledge base from government tables…"):
+                st.session_state.rag_index = load_rag_index()
+    
+        if "chat_history" not in st.session_state:
+            st.session_state.chat_history = []
+    
+        qa = get_llm_chain(st.session_state.rag_index)
+    
+        # Chat input
+        user_msg = st.text_input(
+            "Ask something…",
+            placeholder="e.g., 'Where should our next store open?'"
+        )
+    
+        # Handle response
+        if user_msg:
+            with st.spinner("Thinking…"):
+                llm_reply = qa.run(user_msg)
+    
+            # Store in chat memory
+            st.session_state.chat_history.append(("user", user_msg))
+            st.session_state.chat_history.append(("bot", llm_reply))
+    
+        # Display chat
+        st.write("### 💬 Chat History")
+        for speaker, msg in st.session_state.chat_history:
+            if speaker == "user":
+                st.markdown(f"🧑 **You:** {msg}")
+            else:
+                st.markdown(f"🤖 **AI:** {msg}")
+    
+        # Optional: clear chat
+        if st.button("Clear Chat"):
+            st.session_state.chat_history = []
+
 
     # -------------------------
-    # 6️⃣ Download all recommendations
+    # 7 Download all recommendations
     # -------------------------
     all_reco = {
         'segment_campaigns': seg_campaigns_df,
