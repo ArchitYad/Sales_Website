@@ -221,39 +221,50 @@ def show_recommendations():
 
     st.subheader("🤖 AI Strategy Assistant (LLM + RAG + Live Trends)")
     
+    # Load RAG index
     if "rag_index" not in st.session_state:
-        with st.spinner("Building knowledge base from government spending tables…"):
+        with st.spinner("Building knowledge base from Myanmar govt tables…"):
             st.session_state.rag_index = load_rag_index()
     
-    with st.spinner("Fetching live economic news..."):
+    # Fetch live signals
+    with st.spinner("Fetching business + market news…"):
         news_summary = fetch_news_summary()
     
-    with st.spinner("Fetching social media trends..."):
+    with st.spinner("Fetching consumer sentiment from social media…"):
         social_summary = fetch_social_summary()
     
+    # Combine with LLM
     context_boost = f"""
-    Latest Market News:
+    ### 📢 Live Market Signals
+    **News Trends:**
     {news_summary}
     
-    Current Consumer Trends:
+    **Social Sentiment:**
     {social_summary}
     """
     
-    qa = get_llm_chain(st.session_state.rag_index, extra_context=context_boost)
+    qa = get_llm_chain(
+        vectordb=st.session_state.rag_index,
+        extra_context=context_boost
+    )
+    
+    # Floating Chat UI
+    st.markdown("---")
+    st.markdown("### 💬 Chat with Retail Strategy AI")
     
     with st.chat_message("assistant"):
-        st.markdown("Hello! Ask anything about store expansion, discounts, product demand, or regional strategy.")
+        st.markdown("Hello! Ask me anything about store expansion, discounts, pricing, or product planning.")
     
-    user_input = st.chat_input("Ask your question…")
+    user_query = st.chat_input("Ask your question…")
     
-    if user_input:
+    if user_query:
         with st.chat_message("user"):
-            st.write(user_input)
+            st.write(user_query)
     
         with st.chat_message("assistant"):
-            with st.spinner("Analyzing with RAG + News + Social signals…"):
-                response = qa.run({"query": user_input, "extra_context": context_boost})
-            st.write(response)
+            with st.spinner("Analyzing (Govt Data + News + Trends)…"):
+                ai_ans = qa.run(user_query)
+            st.write(ai_ans)
 
 
 
