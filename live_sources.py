@@ -1,37 +1,48 @@
 # live_sources.py
-import requests
 import os
+import requests
+from bs4 import BeautifulSoup
 
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
 
-def fetch_news_summary():
-    """Fetch top global retail/economic news headlines."""
-    if not NEWS_API_KEY:
-        return "NewsAPI key missing."
+# -----------------------------
+# NewsAPI
+# -----------------------------
+def fetch_news_summary(country="mm", max_articles=5):
+    api_key = os.getenv("NEWSAPI_KEY")
+    if not api_key:
+        return "No NewsAPI key configured."
+
+    url = "https://newsapi.org/v2/top-headlines"
+    params = {
+        "apiKey": api_key,
+        "country": country,
+        "pageSize": max_articles
+    }
 
     try:
-        url = f"https://newsapi.org/v2/top-headlines?category=business&language=en&apiKey={NEWS_API_KEY}"
-        res = requests.get(url).json()
-
-        headlines = [a["title"] for a in res.get("articles", [])[:5]]
-        if not headlines:
-            return "No news found."
-
-        return "\n".join([f"- {h}" for h in headlines])
-    except:
-        return "Error fetching news."
+        r = requests.get(url, params=params, timeout=10).json()
+        titles = [a["title"] for a in r.get("articles", [])]
+        return " | ".join(titles[:max_articles])
+    except Exception as e:
+        return f"News fetch error: {e}"
 
 
-def fetch_social_summary():
-    """Fetch latest Reddit trending posts (proxy for consumer sentiment)."""
+# -----------------------------
+# Reddit (NO API KEY)
+# -----------------------------
+def fetch_social_summary(subreddit="myanmar", limit=5):
     try:
-        url = "https://www.reddit.com/r/AskReddit/top.json?limit=5&t=day"
-        res = requests.get(url, headers={"User-agent": "Mozilla/5.0"}).json()
+        url = f"https://www.reddit.com/r/{subreddit}/hot/"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(r.text, "html.parser")
 
-        titles = [
-            i["data"]["title"]
-            for i in res["data"]["children"][:5]
-        ]
-        return "\n".join([f"- {t}" for t in titles])
-    except:
-        return "Unable to fetch trends."
+        titles = []
+        for h in soup.find_all("h3"):
+            titles.append(h.text)
+            if len(titles) >= limit:
+                break
+
+        return " | ".join(titles) if titles else "No Reddit trends found."
+    except Exception as e:
+        return f"Reddit fetch error: {e}"
