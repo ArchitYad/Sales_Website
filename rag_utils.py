@@ -1,151 +1,130 @@
 # rag_utils.py
-
 import os
 import pandas as pd
-from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter   # <-- FIXED IMPORT
+from typing import Dict, List, Any
+
 from langchain_core.prompts import PromptTemplate
-from langchain.chains import RetrievalQA
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+
+from langchain_community.vectorstores import FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
+
 from groq import Groq
 
-# ----------------------------
-# 1. Load Government XLSX Data
-# ----------------------------
 
-file_groups = {
-    "Group1": ("table_1.xlsx", ["Union", "Kachin State", "Kayah State", "Kayin State"]),
-    "Group2": ("table_2.xlsx", ["Chin State", "Sagaing Division", "Tanintharyi Division", "Bago Division"]),
-    "Group3": ("table_3.xlsx", ["Magway Division", "Mandalay State", "Mon State", "Rakhine State"]),
-    "Group4": ("table_4.xlsx", ["Yangon Division", "Shan State", "Ayeyarwady State", "Nay Pyi Taw State"])
-}
+# -----------------------------
+# Load government tables
+# -----------------------------
+def _load_tables(file_groups: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
+    region_totals = {}
 
-food_items = [
-    "Rice","Pulses","Cooking oil and fats","Meat","Eggs","Fish and crustacea (fresh)","Vegetables",
-    "Fruits","Fish and crustacea (dried)","Wheat and Rice products","Food Taken Outside Home",
-    "Ngapi and nganpyaye","Spices and condiments","Beverages","Sugar and other food","Milk and milk products"
-]
-
-non_food_items = [
-    "Tobacco","Fuel and light","Travelling expenses (Local)","Travelling expenses (Journey)",
-    "Clothing and apparel","Personal use goods","Cleansing and toilet","Crockery","Furniture",
-    "House rent and repairs","Education","Stationery and school supplies","Medical care",
-    "Recreation","Charity and ceremonials","Other expenses","Other household goods"
-]
-
-
-def load_government_text():
-    """
-    Convert all XLSX regional expenditure data into consolidated text
-    for vector embedding storage.
-    """
-
-    region_texts = []
-
-    for group_name, (file, regions) in file_groups.items():
+    for _, (file, regions) in file_groups.items():
         df = pd.read_excel(file, header=1)
         df = df.rename(columns={df.columns[1]: "Particulars"})
 
         for idx, region in enumerate(regions):
             value_col = "Value" if idx == 0 else f"Value.{idx}"
+            region_df = df[["Particulars", value_col]].copy()
+            region_df = region_df.rename(columns={value_col: "Value"})
+            region_df = region_df.set_index("Particulars")
+            region_totals[region] = region_df
 
-            region_data = df[["Particulars", value_col]].copy()
-            region_data = region_data.rename(columns={value_col: "Value"})
-            region_data = region_data.set_index("Particulars")
-
-            text = f"Region: {region}\n"
-
-            # Total expenditure
-            text += f"Total expenditure: {region_data.loc['HOUSEHOLD EXPENDITURE TOTAL', 'Value']}\n"
-
-            # Food vs non-food
-            food_total = region_data.loc["FOOD AND BEVERAGES TOTAL", "Value"]
-            non_food_total = region_data.loc["NON-FOOD TOTAL", "Value"]
-            text += f"Food expenditure: {food_total}\n"
-            text += f"Non-food expenditure: {non_food_total}\n"
-
-            # Top categories
-            top_food = region_data.loc[food_items, "Value"].sort_values(ascending=False).head(5)
-            top_non_food = region_data.loc[non_food_items, "Value"].sort_values(ascending=False).head(5)
-
-            text += "\nTop food items:\n"
-            for item, val in top_food.items():
-                text += f" - {item}: {val}\n"
-
-            text += "\nTop non-food items:\n"
-            for item, val in top_non_food.items():
-                text += f" - {item}: {val}\n"
-
-            region_texts.append(text)
-
-    return region_texts
+    return region_totals
 
 
-# ----------------------------
-# 2. Build Vector DB
-# ----------------------------
+# -----------------------------
+# Build RAG documents
+# -----------------------------
+def _build_docs(region_totals: Dict[str, pd.DataFrame]) -> List[str]:
+    docs = []
 
-def load_rag_index():
-    texts = load_government_text()
+    for region, df in region_totals.items():
+        try:
+            total = df.loc["HOUSEHOLD EXPENDITURE TOTAL", "Value"]
+        except Exception:
+            total = "unknown"
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100)
-    chunks = splitter.split_text("\n\n".join(texts))
+        summary = f"{region}: Total household expenditure is {total}."
+        docs.append(summary)
+
+        for idx, row in df.iterrows():
+            try:
+                val = row["Value"]
+                docs.append(f"{region} | {idx} | Expenditure: {val}")
+            except Exception:
+                continue
+
+    return docs
+
+
+# -----------------------------
+# Build Vector DB
+# -----------------------------
+def load_rag_index(file_groups: Dict = None):
+    if file_groups is None:
+        file_groups = {
+            "Group1": ("table_1.xlsx", ["Union", "Kachin State", "Kayah State", "Kayin State"]),
+            "Group2": ("table_2.xlsx", ["Chin State", "Sagaing Division", "Tanintharyi Division", "Bago Division"]),
+            "Group3": ("table_3.xlsx", ["Magway Division", "Mandalay State", "Mon State", "Rakhine State"]),
+            "Group4": ("table_4.xlsx", ["Yangon Division", "Shan State", "Ayeyarwady State", "Nay Pyi Taw State"])
+        }
+
+    region_totals = _load_tables(file_groups)
+    docs = _build_docs(region_totals)
 
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+    vectordb = FAISS.from_texts(docs, embedding=embeddings)
 
-    vectordb = Chroma.from_texts(texts=chunks, embedding=embeddings)
     return vectordb
 
 
-# ----------------------------
-# 3. LLM + RAG Chain
-# ----------------------------
-
-def get_llm_chain(vectordb, extra_context=""):
-    """
-    Build final RAG + LLM chain with optional injected context
-    (news + social media).
-    """
+# -----------------------------
+# LLM Chain (LCEL)
+# -----------------------------
+def get_llm_chain(vectordb, extra_context: str = ""):
+    retriever = vectordb.as_retriever(search_kwargs={"k": 5})
 
     prompt = PromptTemplate(
         input_variables=["context", "question"],
         template=f"""
 You are a retail strategy AI assistant.
 
-Use ONLY the provided context from:
-- Myanmar Government household spending tables
-- Latest market news
-- Social media consumption trends
+Use ONLY the information below:
+- Myanmar Government household expenditure data
+- Live market and social signals (if provided)
 
-CONTEXT:
+GOVERNMENT CONTEXT:
 {{context}}
 
-LIVE MARKET SIGNALS:
+LIVE SIGNALS:
 {extra_context}
 
 QUESTION:
 {{question}}
 
-Give a strategic recommendation in **4–6 bullet points**.
+Provide a strategic answer in 4–6 bullet points.
 """
     )
 
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-    class GroqLLMWrapper:
-        """Small wrapper for Groq to behave like an LLM."""
+    def groq_llm(prompt_text: str) -> str:
+        resp = client.chat.completions.create(
+            model="llama-3.1-70b-versatile",
+            messages=[{"role": "user", "content": prompt_text}],
+            temperature=0.4
+        )
+        return resp.choices[0].message["content"]
 
-        def __call__(self, prompt):
-            resp = client.chat.completions.create(
-                model="llama-3.1-70b-versatile",
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return resp.choices[0].message["content"]
-
-    llm = GroqLLMWrapper()
-
-    return RetrievalQA.from_chain_type(
-        llm=llm,
-        retriever=vectordb.as_retriever(search_kwargs={"k": 5}),
-        chain_type_kwargs={"prompt": prompt}
+    chain = (
+        {
+            "context": retriever,
+            "question": RunnablePassthrough()
+        }
+        | prompt
+        | groq_llm
+        | StrOutputParser()
     )
+
+    return chain
