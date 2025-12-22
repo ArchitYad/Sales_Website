@@ -23,3 +23,5 @@ xmltodict
 python-dotenv
 newsapi-python
 tiktoken
+langchain-core
+beautifulsoup4
