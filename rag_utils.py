@@ -12,7 +12,6 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 
 from groq import Groq
 
-
 # -----------------------------
 # Load government tables
 # -----------------------------
@@ -36,7 +35,7 @@ def _load_tables(file_groups: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
 def _build_docs(region_totals: Dict[str, pd.DataFrame]) -> List[str]:
     docs = []
     for region, df in region_totals.items():
-        total = df.loc.get("HOUSEHOLD EXPENDITURE TOTAL", {}).get("Value", "unknown")
+        total = df.loc["HOUSEHOLD EXPENDITURE TOTAL", "Value"] if "HOUSEHOLD EXPENDITURE TOTAL" in df.index else "unknown"
         docs.append(f"{region}: Total household expenditure is {total}.")
         for idx, row in df.iterrows():
             val = row.get("Value", None)
@@ -102,9 +101,9 @@ Provide a concise strategic recommendation in 4–5 bullet points, then summariz
             temperature=0.4
         )
         full_output = resp.choices[0].message["content"]
-        # Optional: Simple summarization if the output is too long
-        summary = full_output.split("\n")[:6]  # take first 6 lines
-        return "\n".join(summary)
+        # Summarize output if too long: take first 6–8 lines
+        summary_lines = full_output.split("\n")[:8]
+        return "\n".join(summary_lines)
 
     chain = (
         {
