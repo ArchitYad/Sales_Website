@@ -36,7 +36,12 @@ def _load_tables(file_groups: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
 def _build_docs(region_totals: Dict[str, pd.DataFrame]) -> List[str]:
     docs = []
     for region, df in region_totals.items():
-        total = df.loc["HOUSEHOLD EXPENDITURE TOTAL"]["Value"] if "HOUSEHOLD EXPENDITURE TOTAL" in df.index else "unknown"
+        # Safe extraction of total expenditure
+        if "HOUSEHOLD EXPENDITURE TOTAL" in df.index:
+            total = df.loc["HOUSEHOLD EXPENDITURE TOTAL", "Value"]
+        else:
+            total = "unknown"
+
         docs.append(f"{region}: Total household expenditure is {total}.")
         for idx, row in df.iterrows():
             val = row.get("Value", None)
@@ -66,7 +71,7 @@ def load_rag_index(file_groups: Dict = None):
 
 
 # -----------------------------
-# LLM + RAG Chain with Summary
+# LLM + RAG Chain with Summarization
 # -----------------------------
 def get_llm_chain(vectordb, extra_context: str = ""):
     retriever = vectordb.as_retriever(search_kwargs={"k": 5})
@@ -89,26 +94,24 @@ LIVE SIGNALS:
 QUESTION:
 {{question}}
 
-Provide a concise strategic recommendation in 4–5 bullet points, then summarize into a short paragraph.
+Provide a concise strategic recommendation in 4–5 bullet points and a short summary.
 """
     )
 
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
     def groq_llm(prompt_text) -> str:
-        # Ensure the prompt is always a string
         if not isinstance(prompt_text, str):
             prompt_text = str(prompt_text)
 
         resp = client.chat.completions.create(
-            model="llama-3.1-70b-versatile",
+            model="llama-3.1-8b-instant",  # instant, supported model
             messages=[{"role": "user", "content": prompt_text}],
             temperature=0.4
         )
 
         full_output = resp.choices[0].message["content"]
-        # Take first 6 lines as a safe summarization for UI
-        summary = "\n".join(full_output.split("\n")[:6])
+        summary = "\n".join(full_output.split("\n")[:8])  # take first 8 lines
         return summary
 
     chain = (
