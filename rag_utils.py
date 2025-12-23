@@ -103,15 +103,18 @@ Provide a concise strategic recommendation in 4–5 bullet points and a short su
     def groq_llm(prompt_text) -> str:
         if not isinstance(prompt_text, str):
             prompt_text = str(prompt_text)
-
+    
         resp = client.chat.completions.create(
-            model="llama-3.1-8b-instant",  # instant, supported model
+            model="llama-3.1-8b-instant",
             messages=[{"role": "user", "content": prompt_text}],
             temperature=0.4
         )
-
-        full_output = resp.choices[0].message["content"]
-        summary = "\n".join(full_output.split("\n")[:8])  # take first 8 lines
+    
+        # Correct access for ChatCompletionMessage
+        full_output = resp.choices[0].message.content
+    
+        # Simple summarization for UI
+        summary = "\n".join(full_output.split("\n")[:8])
         return summary
 
     chain = (
