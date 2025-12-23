@@ -123,42 +123,144 @@ def show_recommendations():
     # 5️⃣ New Store Location Recommendation
     # -------------------------
     st.subheader("5️⃣ New Store Location Recommendation")
-    # Load tables, compute top3 regions etc. (your previous code)
-    # ... keep your existing code here for region_totals, top3_regions, and map plotting ...
+    
+    existing_cities = ["Mandalay State", "Yangon Division",  "Nay Pyi Taw State"]
+    
+    # === Step 2: File group mapping ===
+    file_groups = {
+        "Group1": ("table_1.xlsx", ["Union", "Kachin State", "Kayah State", "Kayin State"]),
+        "Group2": ("table_2.xlsx", ["Chin State", "Sagaing Division", "Tanintharyi Division", "Bago Division"]),
+        "Group3": ("table_3.xlsx", ["Magway Division", "Mandalay State", "Mon State", "Rakhine State"]),
+        "Group4": ("table_4.xlsx", ["Yangon Division", "Shan State", "Ayeyarwady State", "Nay Pyi Taw State"])
+    }
+    
+    # Food & non-food subcategories
+    food_items = [
+        "Rice","Pulses","Cooking oil and fats","Meat","Eggs","Fish and crustacea (fresh)","Vegetables",
+        "Fruits","Fish and crustacea (dried)","Wheat and Rice products","Food Taken Outside Home",
+        "Ngapi and nganpyaye","Spices and condiments","Beverages","Sugar and other food","Milk and milk products"
+    ]
+    
+    non_food_items = [
+        "Tobacco","Fuel and light","Travelling expenses (Local)","Travelling expenses (Journey)",
+        "Clothing and apparel","Personal use goods","Cleansing and toilet","Crockery","Furniture",
+        "House rent and repairs","Education","Stationery and school supplies","Medical care",
+        "Recreation","Charity and ceremonials","Other expenses","Other household goods"
+    ]
+    
+    # === Step 3: Load and combine data ===
+    region_totals = {}
+    for group_name, (url, regions) in file_groups.items():
+        df = pd.read_excel(url, header=1)
+        df = df.rename(columns={df.columns[1]: "Particulars"})
+        
+        for idx, region in enumerate(regions):
+            value_col = "Value" if idx == 0 else f"Value.{idx}"
+            region_data = df[["Particulars", value_col]].copy()
+            region_data = region_data.rename(columns={value_col: "Value"})
+            region_data = region_data.set_index("Particulars")
+            region_totals[region] = region_data
+    
+    # === Step 4: Remove existing retail cities ===
+    available_regions = [r for r in region_totals.keys() if r not in existing_cities]
+    
+    # === Step 5: Compute top 3 regions by total expenditure ===
+    top3_regions = sorted(
+        available_regions,
+        key=lambda x: region_totals[x].loc["HOUSEHOLD EXPENDITURE TOTAL", "Value"],
+        reverse=True
+    )[:3]
+    
+    # === Step 6: Map coordinates (OpenStreetMap) ===
+    region_coords = {
+        "Union": [21.9162, 95.9560],
+        "Kachin State": [25.57, 97.33],
+        "Kayah State": [19.33, 96.58],
+        "Kayin State": [16.73, 97.60],
+        "Chin State": [21.95, 93.73],
+        "Sagaing Division": [22.00, 95.00],
+        "Tanintharyi Division": [12.25, 99.50],
+        "Bago Division": [17.33, 96.50],
+        "Magway Division": [20.15, 95.55],
+        "Mon State": [16.55, 97.73],
+        "Rakhine State": [19.90, 94.85],
+        "Shan State": [21.90, 97.80],
+        "Ayeyarwady State": [16.77, 94.73]
+    }
+    
+    # === Step 7: Display recommendations ===
+    st.subheader("5️⃣ New Store Location Recommendation")
+    m = folium.Map(location=[21.9162, 95.9560], zoom_start=6, tiles="OpenStreetMap")
+    
+    for region in top3_regions:
+        data = region_totals[region]
+        food_total = data.loc["FOOD AND BEVERAGES TOTAL", "Value"]
+        non_food_total = data.loc["NON-FOOD TOTAL", "Value"]
+        total = data.loc["HOUSEHOLD EXPENDITURE TOTAL", "Value"]
+    
+        food_share = food_total / total * 100
+        non_food_share = non_food_total / total * 100
+        focus = "🛒 Food & FMCG" if food_share > non_food_share else "💡 Non-Food Retail"
+    
+        # Top subcategories
+        top_food = data.loc[food_items, "Value"].sort_values(ascending=False).head(3).index.tolist()
+        top_non_food = data.loc[non_food_items, "Value"].sort_values(ascending=False).head(3).index.tolist()
+    
+        st.write(f"✅ **{region}** — {focus}")
+        st.write(f"   🍚 Top Food Items: {', '.join(top_food)}")
+        st.write(f"   🧾 Top Non-Food Items: {', '.join(top_non_food)}")
+    
+        coords = region_coords.get(region)
+        if coords:
+            folium.Marker(
+                location=coords,
+                popup=f"{region}\n{focus}",
+                tooltip=region
+            ).add_to(m)
+    
+    # Display Folium map
+    st_folium(m, width=700, height=500)
 
-    # -------------------------
     # 6️⃣ AI Strategy Assistant (LLM + RAG + Live Trends)
-    # -------------------------
     st.subheader("🤖 AI Strategy Assistant (LLM + RAG + Live Trends)")
+    
+    # Build RAG index if not already in session
     if "rag_index" not in st.session_state:
         with st.spinner("Building RAG knowledge base..."):
             st.session_state.rag_index = load_rag_index()
-
+    
+    # Fetch live news and social summaries
     news_summary = fetch_news_summary()
     social_summary = fetch_social_summary()
-
+    
     extra_context = f"""
-Market News:
-{news_summary}
-
-Social Trends:
-{social_summary}
-"""
-
+    Market News:
+    {news_summary}
+    
+    Social Trends:
+    {social_summary}
+    """
+    
+    # Get the LLM + RAG chain
     qa_chain = get_llm_chain(st.session_state.rag_index, extra_context)
-
+    
+    # Initial message in chat
     with st.chat_message("assistant"):
         st.markdown("👋 Ask me about store expansion, discounts, product mix, or regional demand.")
-
+    
+    # User input
     user_input = st.chat_input("Ask a strategy question...")
     if user_input:
         with st.chat_message("user"):
             st.write(user_input)
-
+    
         with st.chat_message("assistant"):
             with st.spinner("Analyzing with AI..."):
+                # Invoke the LLM chain
                 response = qa_chain.invoke(user_input)
+            # Display the summarized response
             st.write(response)
+
 
     # -------------------------
     # 7️⃣ Download all recommendations
