@@ -12,6 +12,7 @@ from langchain_community.embeddings import HuggingFaceEmbeddings
 
 from groq import Groq
 
+
 # -----------------------------
 # Load government tables
 # -----------------------------
@@ -35,7 +36,7 @@ def _load_tables(file_groups: Dict[str, Any]) -> Dict[str, pd.DataFrame]:
 def _build_docs(region_totals: Dict[str, pd.DataFrame]) -> List[str]:
     docs = []
     for region, df in region_totals.items():
-        total = df.loc["HOUSEHOLD EXPENDITURE TOTAL", "Value"] if "HOUSEHOLD EXPENDITURE TOTAL" in df.index else "unknown"
+        total = df.loc["HOUSEHOLD EXPENDITURE TOTAL"]["Value"] if "HOUSEHOLD EXPENDITURE TOTAL" in df.index else "unknown"
         docs.append(f"{region}: Total household expenditure is {total}.")
         for idx, row in df.iterrows():
             val = row.get("Value", None)
@@ -94,16 +95,21 @@ Provide a concise strategic recommendation in 4–5 bullet points, then summariz
 
     client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-    def groq_llm(prompt_text: str) -> str:
+    def groq_llm(prompt_text) -> str:
+        # Ensure the prompt is always a string
+        if not isinstance(prompt_text, str):
+            prompt_text = str(prompt_text)
+
         resp = client.chat.completions.create(
             model="llama-3.1-70b-versatile",
             messages=[{"role": "user", "content": prompt_text}],
             temperature=0.4
         )
+
         full_output = resp.choices[0].message["content"]
-        # Summarize output if too long: take first 6–8 lines
-        summary_lines = full_output.split("\n")[:8]
-        return "\n".join(summary_lines)
+        # Take first 6 lines as a safe summarization for UI
+        summary = "\n".join(full_output.split("\n")[:6])
+        return summary
 
     chain = (
         {
